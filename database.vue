@@ -51,26 +51,29 @@
         <div class="wrapper">
             <div class="fileshow">
                 <div class="top">
-                    <div class="upload" @change="uploadFile($event)">
-                        <input type="file" id="file">
-                        <span>上传文件</span>
+                    <div class="top_content">
+                        <div class="upload" @change="uploadFile($event)">
+                            <input type="file" id="file">
+                            <span>上传文件</span>
+                        </div>
+                        <span class="newfile" @click="showNewFile">新建文件夹</span>
+                        <el-button type="danger" icon="el-icon-delete" size="mini" v-show="totalItem > 0" @click="deleteAll(idarr)">批量删除</el-button>
+                        <div class="search">
+                            <input type="text" placeholder="搜索您的文件" v-model="keyword" @keyup.enter="search">
+                            <i class="el-icon-search" @click="search"></i>
+                        </div>
                     </div>
-                    <span class="newfile" @click="showNewFile">新建文件夹</span>
-                    <el-button type="danger" icon="el-icon-delete" size="mini" v-show="totalItem > 0" @click="deleteAll(idarr)">批量删除</el-button>
-                    <div class="search">
-                        <input type="text" placeholder="搜索您的文件" v-model="keyword" @keyup.enter="search">
-                        <i class="el-icon-search" @click="search"></i>
-                    </div>
+                    <el-progress :percentage="num" v-if="num > 0 && num < 100"></el-progress>
                 </div>
                 <div class="content">
                     <div class="title">
                         <div class="breadcrumb">
                             <el-breadcrumb separator-class="el-icon-arrow-right">
-                                <el-breadcrumb-item class="is-link" :to="{ path: '/' }">
+                                <el-breadcrumb-item class="is-link">
                                     <span class="return" @click="returnTop" v-if="newid">返回上一级</span>全部文件
                                 </el-breadcrumb-item>
                                 <el-breadcrumb-item v-for="(item, index) in crumbArr" :key="index">{{ item }}</el-breadcrumb-item>
-                                <el-breadcrumb-item v-if="keyword">搜索：“{{ keyword }}”</el-breadcrumb-item>
+                                <el-breadcrumb-item v-if="flag">搜索：<span v-if="keyword != ''">“{{ keyword }}”</span></el-breadcrumb-item>
                             </el-breadcrumb>
                         </div>
                         <span class="total">{{ totalItem }}个项目</span>
@@ -91,6 +94,7 @@
                         prop="name"
                         label="文件"
                         show-overflow-tooltip
+                        min-width="400"
                         >
                             <template slot-scope="scope">
                                 <span @contextmenu.prevent="rightArrow(scope.$index, $event)" class="ff">
@@ -117,7 +121,7 @@
                         </el-table-column>
                         <el-table-column
                         label=""
-                        width="200"
+                        width="300"
                         >
                             <template slot-scope="scope">
                                 <div class="loadmore">
@@ -134,7 +138,7 @@
                                             <ul>
                                                 <li @click="delFile(scope.row.id)">删除</li>
                                                 <li @click="resetname(scope.row)">重命名</li>
-                                                <li v-show="scope.row.name.includes('.')" @change="uploadFile($event, scope.row.id)">
+                                                <li v-show="scope.row.name.includes('.')" @change="updateFile($event, scope.row.id)">
                                                     <input type="file" :class="'file' + scope.row.id">
                                                     <span>上传新版本</span>
                                                 </li>
@@ -148,7 +152,8 @@
                         prop="time"
                         label="最新修改"
                         show-overflow-tooltip
-                        sortable>
+                        sortable
+                        min-width="200">
                         </el-table-column>
                     </el-table>
                 </div>
@@ -163,7 +168,14 @@
                 </el-pagination>
             </div>
         </div>
-        <el-dialog title="新建文件夹" :visible.sync="dialogFormVisible" :close-on-click-modal="false">
+        <el-dialog title="" :visible.sync="dialogFormVisible" :close-on-click-modal="false">
+            <div slot="title">
+                <span class="dtitle">新建文件夹</span>
+                <span class="dsub">
+                    （<i class="el-icon-info"></i>
+                    新建的文件夹所在位置为当前你所在文件夹下）
+                </span>
+            </div>
             <el-form>
                 <el-form-item label="文件夹名称：">
                     <el-input v-model="filename"></el-input>
@@ -431,7 +443,7 @@ export default {
             //新建文件所在位置
             fileaddr: "",
             //搜索项目总数
-            totalItem: 1,
+            totalItem: 0,
             emptyText: "暂无数据",
             pageNo: 1,
             currentPage: 1,
@@ -445,7 +457,11 @@ export default {
             //文件/文件夹id
             newid: '',
             //批量删除文件/文件夹id
-            idarr: []
+            idarr: [],
+            //进度条数值
+            num: 0,
+            //控制搜索显示的锁
+            flag: false
         }
     },
     methods: {
@@ -495,6 +511,8 @@ export default {
         },
         //elementui树结构点击事件
         handleNodeClick(val, node) {
+            this.keyword = "";
+            this.flag = false;
             this.newid = val.id;
             this.keyword = "";
             this.tableData.splice(0);
@@ -581,10 +599,15 @@ export default {
         },
         //重命名
         resetname(val) {
-            this.rname = "";
             this.rid = val.id;
             if (val.name.includes('.')) {
+                console.log('11111');
                 this.dname = val.name.slice(val.name.indexOf('.'), val.name.length);
+                this.rname = val.name.slice(0, val.name.indexOf('.'));
+            } else {
+                console.log('dsadsad')
+                this.dname = "";
+                this.rname = val.name;
             }
             this.dialogFormVisible2 = true;
         },
@@ -645,6 +668,13 @@ export default {
             // })
             // this.totalItem = this.tableData.length;
             // this.currentPage = 1;
+            this.newid = "";
+            this.currentPage = 1;
+            this.totalItem = 0;
+            this.flag = true;
+            this.$refs.tree.setCurrentKey(this.defaultArr[0]);
+            this.crumbArr.splice(0);
+            this.defaultArr.splice(0);
             this.getData(this.keyword);
         },
         //表格选中
@@ -670,7 +700,7 @@ export default {
             }
         },
         //上传文件
-        uploadFile(e, val) {
+        uploadFile(e) {
             if (!this.newid) {
                 this.$message({
                     type: "warning",
@@ -679,20 +709,72 @@ export default {
             } else {
                 let that = this;
                 let file = e.target.files;
+                let timer;
+                console.log(file);
+                if (file.length > 0) {
+                    timer = setInterval(() => {
+                        that.num += 5;
+                        if (that.num == 100) {
+                            clearInterval(timer);
+                        }
+                    }, 300)
+                    let data = new FormData();
+                    data.append("file", file[0]);
+                    data.append('id', this.newid);
+                    that.axios.post('api/upload-file/', data, config).then(res => {
+                        if (res.data.state == 0) {
+                            that.num = 100;
+                            that.$message({
+                                type: "success",
+                                message: "上传文件成功!"
+                            });
+                            clearInterval(timer);
+                            that.num = 0;
+                            that.getTree();
+                            that.getData();
+                        }
+                    })
+                } else {
+                    this.$message({
+                        type: "warning",
+                        message: "您并没有选择文件！"
+                    });
+                }
+            }
+        },
+        //上传文件新版本
+        updateFile(e, val) {
+            let that = this;
+            let file = e.target.files;
+            let timer;
+            if (file.length > 0) {
+                timer = setInterval(() => {
+                    that.num += 5;
+                    if (that.num == 100) {
+                        clearInterval(timer);
+                    }
+                }, 300)
                 let data = new FormData();
-                let id = val ? val : this.newid;
                 data.append("file", file[0]);
-                data.append('id', id);
-                that.axios.post('api/upload-file/', data, config).then(res => {
+                data.append('id', val);
+                that.axios.post('api/update-file/', data, config).then(res => {
                     if (res.data.state == 0) {
+                        that.num = 100;
                         that.$message({
                             type: "success",
-                            message: "上传文件成功!"
+                            message: "上传文件新版本成功!"
                         });
+                        clearInterval(timer);
+                        that.num = 0;
                         that.getTree();
                         that.getData();
                     }
                 })
+            } else {
+                this.$message({
+                    type: "warning",
+                    message: "您并没有选择文件！"
+                });
             }
         },
         //获取文件目录
@@ -703,9 +785,10 @@ export default {
                     if (this.crumbArr.length == 0) {
                         this.tableData = this.copyObj(res.data.data);
                         this.filterData = this.copyObj(res.data.data);
+                        this.totalItem = res.data.data.length;
                     } else {
                         this.$nextTick(() => {
-                            this.$refs.tree.setCurrentKey(this.defaultArr[this.defaultArr.length]);
+                            this.$refs.tree.setCurrentKey(this.defaultArr[this.defaultArr.length - 1]);
                         });
                     }
                 }
@@ -723,15 +806,16 @@ export default {
                 data.append("id", this.newid);
             }
             this.axios.post('api/get-file/', data, config).then(res => {
-                // console.log(res);
                 if (res.data.state == 0) {
                     if (res.data.data.item.length == 0) {
                         this.emptyText = '暂无数据';
+                    } else {
+                        this.filterData = this.copyObj(res.data.data.item);
+                        this.tableData = this.copyObj(res.data.data.item);
+                        this.filterData = this.filterData.slice(0, 10);
                     }
-                    this.filterData = this.copyObj(res.data.data.item);
-                    this.tableData = this.copyObj(res.data.data.item);
+                    this.totalItem = res.data.data.item.length;
                 }
-                console.log(this.filterData);
             })
         },
         //获取常用文件
@@ -752,9 +836,12 @@ export default {
         },
         //返回上一级
         returnTop() {
-            this.newid = this.crumbArr[this.crumbArr.length - 1];
+            this.newid = this.defaultArr[this.crumbArr.length - 2];
             this.crumbArr.pop();
             this.defaultArr.pop();
+            console.log(this.newid);
+            console.log(this.crumbArr);
+            console.log(this.defaultArr);
             this.getTree();
             this.getData();
         }
@@ -763,21 +850,27 @@ export default {
         this.getNewMessage();
         this.getCommonFile();
         this.getTree();
+    },
+    mounted() {
+        this.$nextTick(() => {
+            console.log($(document).height())
+            $('.database').height($(document).height() - 62);
+        })
     }
 }
 </script>
 
 <style lang="less">
 .database {
-    overflow: hidden;
+    // overflow: hidden;
     margin-top: 60px;
-    min-height: calc(100% - 60px);
+    border: 1px solid #e4e4e4;
     .file-msg {
         float: left;
         padding: 20px;
         width: 250px;
-        min-height: calc(100% - 60px);
-        border: 1px solid #e4e4e4;
+        min-height: 100%;
+        border-right: 1px solid #e4e4e4;
         background-color: #E9EEF1;
         .title {
             margin-bottom: 25px;
@@ -830,6 +923,7 @@ export default {
         }
         .file {
             ul {
+                border-left: none;
                 li {
                     color: rgba(0, 0, 0, .85);
                 }
@@ -841,10 +935,10 @@ export default {
     }
     .files {
         width: 250px;
-        min-height: calc(100% - 60px);
+        min-height: 100%;
         float: left;
         padding: 20px 0;
-        border: 1px solid #e4e4e4;
+        border-right: 1px solid #e4e4e4;
         img {
             width: 20px;
             vertical-align: middle;
@@ -859,7 +953,7 @@ export default {
                 height: 40px;
                 position: relative;
                 &:hover {
-                    background: rgba(76, 171, 255, .2);
+                    background-color: rgba(76, 171, 255, .2);
                     &:after {
                         transform: scale(1);
                     }
@@ -879,7 +973,7 @@ export default {
             }
             .is-current {
                 >.el-tree-node__content {
-                    background: rgba(76, 171, 255, .2);
+                    background-color: rgba(76, 171, 255, .2);
                     &:after {
                         transform: scale(1);
                     }
@@ -887,109 +981,133 @@ export default {
             }
             &:focus {
                 >.el-tree-node__content {
-                    background: rgba(76, 171, 255, .2);
+                    background-color: rgba(76, 171, 255, .2);
                     &:after {
                         transform: scale(1);
                     }
                 }
             }
         }
+        .el-tree--highlight-current .el-tree-node.is-current>.el-tree-node__content {
+            background-color: rgba(76, 171, 255, .2);
+            &:after {
+                content: '';
+                position: absolute;
+                display: inline-block;
+                right: 0;
+                top: 0;
+                width: 2px;
+                height: 40px;
+                background-color: rgb(76, 171, 255);
+                transform: scale(1);
+                transition: transform .5s;
+            }
+        }
     }
     .wrapper {
+        min-height: 100%;
         .fileshow {
             float: left;
             width: calc(100% - 500px);
-            border: 1px solid #e4e4e4;
+            // border: 1px solid #e4e4e4;
             border-bottom: none;
             .top {
                 padding: 30px 40px;
-                overflow: hidden;
                 border-bottom: 1px solid #e4e4e4;
                 font-size: 14px;
-                .upload {
-                    position: relative;
-                    float: left;
-                    width: 100px;
-                    height: 35px;
-                    cursor: pointer;
-                    input {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        z-index: 2;
-                        width: 90px;
-                        opacity: 0;
+                .top_content {
+                    overflow: hidden;
+                    .upload {
+                        position: relative;
+                        float: left;
+                        width: 100px;
+                        height: 35px;
                         cursor: pointer;
+                        input {
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            z-index: 2;
+                            width: 90px;
+                            opacity: 0;
+                            cursor: pointer;
+                        }
+                        span {
+                            position: absolute;
+                            left: 0;
+                            top: 0;
+                            display: inline-block;
+                            width: 100px;
+                            height: 35px;
+                            line-height: 35px;
+                            border-radius: 3px;
+                            font-size: 14px;
+                            text-align: center;
+                            color: #fff;
+                            background-color: #4CABFF;
+                            cursor: pointer;
+                        }
+                        &:hover {
+                            opacity: .7;
+                        }
                     }
-                    span {
-                        position: absolute;
-                        left: 0;
-                        top: 0;
-                        display: inline-block;
+                    .newfile {
+                        float: left;
+                        margin-left: 10px;
                         width: 100px;
                         height: 35px;
                         line-height: 35px;
+                        border: 1px solid #4CABFF;
                         border-radius: 3px;
                         font-size: 14px;
                         text-align: center;
-                        color: #fff;
-                        background-color: #4CABFF;
+                        color: #4CABFF;
+                        background-color: #fff;
                         cursor: pointer;
+                        &:hover {
+                            opacity: .7;
+                        }
                     }
-                }
-                .newfile {
-                    float: left;
-                    margin-left: 10px;
-                    width: 100px;
-                    height: 35px;
-                    line-height: 35px;
-                    border: 1px solid #4CABFF;
-                    border-radius: 3px;
-                    font-size: 14px;
-                    text-align: center;
-                    color: #4CABFF;
-                    background-color: #fff;
-                    cursor: pointer;
-                    &:hover {
-                        opacity: .7;
+                    .el-button--danger {
+                        float: left;
+                        width: 110px;
+                        height: 35px;
+                        margin-left: 10px;
+                        color: #f56c6c;
+                        background-color: #fff;
+                        i {
+                            display: inline-block;
+                            vertical-align: middle;
+                            font-size: 18px;
+                        }
+                        &:hover {
+                            opacity: .7;
+                        }
                     }
-                }
-                .el-button--danger {
-                    float: left;
-                    width: 110px;
-                    height: 35px;
-                    margin-left: 10px;
-                    color: #f56c6c;
-                    background-color: #fff;
-                    i {
-                        display: inline-block;
-                        vertical-align: middle;
-                        font-size: 18px;
-                    }
-                    &:hover {
-                        opacity: .7;
-                    }
-                }
-                .search {
-                    float: right;
-                    width: 315px;
-                    height: 35px;
-                    padding: 0 15px;
-                    border-radius: 20px;
-                    background-color: #f2f2f2;
-                    input {
-                        width: 267px;
-                        height: 25px;
-                        margin-top: 5px;
-                        border: none;
-                        outline: none;
-                        color: rgba(0, 0, 0, .55);
+                    .search {
+                        float: right;
+                        width: 315px;
+                        height: 35px;
+                        padding: 0 15px;
+                        border-radius: 20px;
                         background-color: #f2f2f2;
+                        input {
+                            width: 267px;
+                            height: 25px;
+                            margin-top: 5px;
+                            border: none;
+                            outline: none;
+                            color: rgba(0, 0, 0, .55);
+                            background-color: #f2f2f2;
+                        }
+                        i {
+                            cursor: pointer;
+                            font-size: 18px;
+                        }
                     }
-                    i {
-                        cursor: pointer;
-                        font-size: 18px;
-                    }
+                }
+                .el-progress {
+                    margin-top: 25px;
                 }
             }
             .content {
@@ -1093,7 +1211,6 @@ export default {
                 }
                 .cell {
                     overflow: visible;
-                    text-align: center
                 }
                 thead {
                     th {
@@ -1104,6 +1221,9 @@ export default {
                 }
                 tr {
                     color: rgba(0, 0, 0, .85);
+                    td:nth-child(3) {
+                        padding: 12px 50px;
+                    }
                 }
                 .ff {
                     img {
@@ -1140,6 +1260,29 @@ export default {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    .el-table--enable-row-hover .el-table__body tr:hover>td{
+        background-color: rgba(76, 171, 255, .2) !important;
+    }
+    .el-pager {
+        li {
+            &.active {
+                color: #4CABFF;
+            }
+            &:hover {
+                color: #4CABFF;
+            }
+        }
+
+    }
+    .dtitle {
+        font-size: 18px;
+    }
+    .dsub {
+        font-size: 16px;
+        .el-icon-info {
+            color: #4CABFF;
+        }
+    }
 }
 .el-select-dropdown__item {
     height: auto !important;
@@ -1149,4 +1292,5 @@ export default {
 .el-tree-node__content {
     height: auto;
 }
+
 </style>
